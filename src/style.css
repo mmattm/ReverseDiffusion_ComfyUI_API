@@ -1,0 +1,138 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #383838;
+  color: white;
+  font-family: Helvetica, sans-serif;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.ui {
+  display: flex;
+  flex-direction: column;
+  align-items: left;
+  gap: 12px;
+  width: fit-content;
+}
+
+#controls-row {
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+#loop-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 1rem;
+  color: #fff;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-size: 1.5rem;
+  flex: 0 0 auto;
+}
+
+#loop-toggle input {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 64px;
+  height: 36px;
+  border: 1px solid #fff;
+  background: transparent;
+  border-radius: 999px;
+  transition: background 120ms ease;
+  flex: 0 0 auto;
+}
+
+#loop-toggle input::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 120ms ease;
+}
+
+#loop-toggle input:checked {
+  background: #fff;
+}
+
+#loop-toggle input:checked::after {
+  transform: translateX(28px);
+  background: #000;
+}
+
+#loop-toggle span {
+  letter-spacing: 0.02em;
+}
+
+#shuffle-seed {
+  padding: 0 1rem;
+  background: #000;
+  color: #fff;
+  font: inherit;
+  font-size: 1.5rem;
+  cursor: pointer;
+  outline: none;
+}
+
+#shuffle-seed:hover,
+#shuffle-seed:focus-visible {
+  background: #fff;
+  color: #000;
+  outline: none;
+}
+
+#prompt-input {
+  width: 100%;
+}
+
+canvas {
+  display: block;
+}
+
+#prompt-input-container {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#prompt-input-container input {
+  padding: 0.5rem;
+  outline: none;
+  border-radius: 0;
+  font-size: 2rem;
+  border: none;
+  background: #000000;
+  color: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.status {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}

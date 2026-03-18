@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>p5 + ComfyUI</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main id="app">
+      <div class="ui">
+        <div id="sketch-container"></div>
+
+        <div id="prompt-input-container">
+          <input id="prompt" type="text" />
+        </div>
+        <div id="controls-row">
+          <label id="loop-toggle" for="loop-realtime">
+            <input id="loop-realtime" type="checkbox" />
+            <span>Loop</span>
+          </label>
+          <button id="shuffle-seed" type="button">🎲 Seed</button>
+        </div>
+      </div>
+    </main>
+
+    <div class="status" id="status">idle</div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
