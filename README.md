@@ -1,7 +1,5 @@
 # ReverseDiffusion – ComfyUI API
 
-# Matthieu Minguet
-
 ## Install
 
 npm install  
@@ -22,4 +20,10 @@ const COMFY_URL = "http://127.0.0.1:8000";
 
 ## Notes
 
-- Workflow must output an image (e.g. PreviewImage)
+- Workflow must output an base64 String
+
+---
+
+Matthieu Minguet  
+ECAL  
+Mars 2026
