@@ -32,14 +32,14 @@
   "13": {
     "inputs": {
       "add_noise": true,
-      "noise_seed": 100,
+      "noise_seed": 892518835996285,
       "cfg": 1,
       "model": ["20", 0],
       "positive": ["6", 0],
       "negative": ["7", 0],
       "sampler": ["14", 0],
       "sigmas": ["22", 0],
-      "latent_image": ["29", 0]
+      "latent_image": ["57", 0]
     },
     "class_type": "SamplerCustom",
     "_meta": {
@@ -75,16 +75,16 @@
       "title": "SDTurboScheduler"
     }
   },
-  "25": {
+  "30": {
     "inputs": {
-      "images": ["8", 0]
+      "data": ""
     },
-    "class_type": "PreviewImage",
+    "class_type": "LoadImageFromBase64",
     "_meta": {
-      "title": "Aperçu Image"
+      "title": "Load Image From Base64"
     }
   },
-  "29": {
+  "57": {
     "inputs": {
       "pixels": ["30", 0],
       "vae": ["20", 2]
@@ -94,13 +94,29 @@
       "title": "VAE Encode"
     }
   },
-  "30": {
+  "58": {
     "inputs": {
-      "data": ""
+      "format": "JPEG",
+      "quality": 95,
+      "add_prefix": true,
+      "optimize": true,
+      "image": ["8", 0]
     },
-    "class_type": "LoadImageFromBase64",
+    "class_type": "ImageToBase64",
     "_meta": {
-      "title": "Load Image From Base64"
+      "title": "Image to Base64"
+    }
+  },
+  "62": {
+    "inputs": {
+      "preview_markdown": "",
+      "preview_text": "",
+      "previewMode": false,
+      "source": ["58", 0]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Aperçu de n'importe quel"
     }
   }
 }

@@ -1,5 +1,7 @@
 # ReverseDiffusion – ComfyUI API
 
+# Matthieu Minguet
+
 ## Install
 
 npm install  

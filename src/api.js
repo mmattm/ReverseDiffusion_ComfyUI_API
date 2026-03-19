@@ -1,107 +1,92 @@
 const COMFY_URL = "http://127.0.0.1:8000";
 
+let currentController = null;
+
+export function cancelComfyRequest() {
+  if (currentController) {
+    currentController.abort();
+    currentController = null;
+  }
+}
+
 function setStatus(text) {
   const el = document.getElementById("status");
   if (el) el.textContent = text;
 }
 
-async function loadWorkflow() {
-  const res = await fetch("/workflows/sdxlturbo_b64.json");
-  if (!res.ok) {
-    throw new Error("failed to load workflow");
-  }
-  return await res.json();
+async function loadWorkflow(signal) {
+  const res = await fetch("/workflows/sdxlturbo_b64_V3.json", { signal });
+  if (!res.ok) throw new Error("failed to load workflow");
+  return res.json();
 }
 
-function canvasDataUrlToBase64(dataUrl) {
-  if (!dataUrl) throw new Error("missing canvas dataUrl");
+function extractBase64(dataUrl) {
   const parts = dataUrl.split(",");
   if (parts.length < 2) throw new Error("invalid dataUrl");
   return parts[1];
 }
 
-async function waitForPrompt(promptId, timeoutMs = 30000) {
-  const start = Date.now();
-
-  while (true) {
-    if (Date.now() - start > timeoutMs) {
-      throw new Error(`timeout while waiting for prompt ${promptId}`);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    const res = await fetch(`${COMFY_URL}/history/${promptId}`);
-    if (!res.ok) {
-      throw new Error("failed to fetch history");
-    }
-
-    const json = await res.json();
-    if (json[promptId]) return json[promptId];
-  }
+function ensureDataUrl(base64) {
+  if (!base64 || typeof base64 !== "string") return null;
+  if (base64.startsWith("data:image/")) return base64;
+  return `data:image/jpeg;base64,${base64}`;
 }
 
-function findFirstImageOutput(outputs) {
-  if (!outputs) return null;
+function findBase64Output(history) {
+  const outputs = history?.outputs || {};
 
   for (const nodeId of Object.keys(outputs)) {
-    const nodeOutput = outputs[nodeId];
-
-    if (nodeOutput?.images?.length) {
-      return nodeOutput.images[0];
-    }
-
-    if (nodeOutput?.ui?.images?.length) {
-      return nodeOutput.ui.images[0];
+    const text = outputs[nodeId]?.text?.[0];
+    if (typeof text === "string" && text.length > 100) {
+      return text;
     }
   }
 
   return null;
 }
 
-async function comfyImageToDataUrl(img) {
-  const params = new URLSearchParams({
-    filename: img.filename,
-    subfolder: img.subfolder || "",
-    type: img.type || "output",
-  });
+async function getBase64FromHistory(promptId, signal) {
+  while (true) {
+    if (signal.aborted) {
+      throw new DOMException("Request aborted", "AbortError");
+    }
 
-  const res = await fetch(`${COMFY_URL}/view?${params.toString()}`);
-  if (!res.ok) {
-    throw new Error("failed to fetch comfy output image");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const res = await fetch(`${COMFY_URL}/history/${promptId}`, { signal });
+    if (!res.ok) throw new Error("failed to fetch history");
+
+    const json = await res.json();
+    const history = json[promptId];
+
+    if (!history) continue;
+
+    const completed = history?.status?.completed;
+    const textOutput = findBase64Output(history);
+
+    if (textOutput) {
+      return ensureDataUrl(textOutput);
+    }
+
+    if (completed) {
+      return null;
+    }
   }
-
-  const blob = await res.blob();
-
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }
 
-export async function runComfy(
-  dataUrl,
-  promptText = "flowers",
-  noiseSeed = Math.floor(Math.random() * 2 ** 32),
-) {
-  setStatus("loading workflow...");
+export async function runComfy(dataUrl, promptText, seed) {
+  cancelComfyRequest();
+  currentController = new AbortController();
+  const { signal } = currentController;
 
   try {
-    const workflow = await loadWorkflow();
+    setStatus("running...");
 
-    const base64 = canvasDataUrlToBase64(dataUrl);
+    const workflow = await loadWorkflow(signal);
 
-    // injecte l'image mask/base64
-    workflow["30"].inputs.data = base64;
-
-    // injecte le prompt
+    workflow["30"].inputs.data = extractBase64(dataUrl);
     workflow["6"].inputs.text = promptText;
-
-    // injecte le seed venant de sketch.js
-    workflow["13"].inputs.noise_seed = noiseSeed;
-
-    setStatus("queueing...");
+    workflow["13"].inputs.noise_seed = seed;
 
     const promptRes = await fetch(`${COMFY_URL}/prompt`, {
       method: "POST",
@@ -109,6 +94,7 @@ export async function runComfy(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ prompt: workflow }),
+      signal,
     });
 
     if (!promptRes.ok) {
@@ -119,27 +105,36 @@ export async function runComfy(
     const promptJson = await promptRes.json();
     const promptId = promptJson.prompt_id;
 
-    setStatus("running...");
+    const firstImage = await getBase64FromHistory(promptId, signal);
 
-    const history = await waitForPrompt(promptId);
-    const img = findFirstImageOutput(history.outputs);
-
-    if (!img) {
-      console.log("history", history);
-      throw new Error("no image output found");
+    if (currentController?.signal === signal) {
+      currentController = null;
     }
 
-    const outputDataUrl = await comfyImageToDataUrl(img);
+    if (!firstImage) {
+      setStatus("no output");
+      return {
+        ok: false,
+        skipped: true,
+        error: "no output",
+      };
+    }
 
     setStatus("done");
 
     return {
       ok: true,
-      promptId,
-      firstImage: outputDataUrl,
+      firstImage,
     };
   } catch (error) {
-    console.error(error);
+    if (error?.name === "AbortError") {
+      return {
+        ok: false,
+        aborted: true,
+        error: "aborted",
+      };
+    }
+
     setStatus("error");
 
     return {
