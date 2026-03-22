@@ -2,94 +2,119 @@ import p5 from "p5";
 import { runComfy } from "./api";
 
 const SIZE = 512;
-const DIAMETER = 120;
+const DIAMETER = SIZE * 0.2;
+const RADIUS = DIAMETER / 2;
 const DEFAULT_PROMPT = "Sun in sky simple landscape";
 
 export function createSketch(container) {
   return new p5((p) => {
-    let loading = false;
-    let bgImg = null;
-    let seed = Math.floor(Math.random() * 2 ** 32);
-    let x = SIZE / 2,
-      y = SIZE / 2;
-    let dragging = false,
-      moved = false,
-      offsetX = 0,
-      offsetY = 0;
+    let rendering = false;
     let loopEnabled = false;
-    let mask, promptEl, loopEl, shuffleEl;
+    let seed = Math.floor(Math.random() * 2 ** 32);
 
-    const prompt = () => promptEl?.value?.trim() || DEFAULT_PROMPT;
-    const randomSeed = () => Math.floor(Math.random() * 2 ** 32);
+    let x = SIZE / 2;
+    let y = SIZE / 2;
+
+    let dragging = false;
+    let moved = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    let bgLayer;
+    let maskLayer;
+
+    let promptEl;
+    let loopEl;
+    let shuffleEl;
 
     async function render() {
-      if (loading) return;
-      loading = true;
+      if (rendering) return;
+      rendering = true;
 
-      mask.background(0);
-      mask.noStroke();
-      mask.fill(255);
-      mask.ellipse(x, y, DIAMETER, DIAMETER);
+      const prompt = promptEl?.value?.trim() || DEFAULT_PROMPT;
 
       const result = await runComfy(
-        mask.elt.toDataURL("image/png"),
-        prompt(),
+        maskLayer.elt.toDataURL("image/png"),
+        prompt,
         seed,
       );
 
-      if (result?.ok && result?.firstImage) {
-        bgImg = await new Promise((resolve) => {
+      if (result?.ok && result.firstImage) {
+        const img = await new Promise((resolve) => {
           p.loadImage(result.firstImage, resolve, () => resolve(null));
         });
+
+        if (img) {
+          bgLayer.clear();
+          bgLayer.image(img, 0, 0, SIZE, SIZE);
+        }
       }
 
-      loading = false;
-      if (loopEnabled) setTimeout(render, 150);
-    }
+      rendering = false;
 
-    const overCircle = () => {
-      const dx = p.mouseX - x;
-      const dy = p.mouseY - y;
-      return dx * dx + dy * dy <= ((DIAMETER / 2) * DIAMETER) / 2;
-    };
+      if (loopEnabled) {
+        setTimeout(render, 150);
+      }
+    }
 
     p.setup = () => {
       p.createCanvas(SIZE, SIZE).parent(container);
-      mask = p.createGraphics(SIZE, SIZE);
+
+      bgLayer = p.createGraphics(SIZE, SIZE);
+      maskLayer = p.createGraphics(SIZE, SIZE);
 
       promptEl = document.getElementById("prompt");
       loopEl = document.getElementById("loop-realtime");
       shuffleEl = document.getElementById("shuffle-seed");
 
-      promptEl.placeholder = DEFAULT_PROMPT;
+      if (promptEl) {
+        promptEl.placeholder = DEFAULT_PROMPT;
+        promptEl.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !rendering) render();
+        });
+      }
 
-      promptEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !loading) render();
-      });
+      if (loopEl) {
+        loopEl.addEventListener("change", () => {
+          loopEnabled = loopEl.checked;
+          if (loopEnabled && !rendering) render();
+        });
+      }
 
-      loopEl.addEventListener("change", () => {
-        loopEnabled = loopEl.checked;
-        if (loopEnabled && !loading) render();
-      });
-
-      shuffleEl.addEventListener("click", () => {
-        seed = randomSeed();
-        if (!loading) render();
-      });
+      if (shuffleEl) {
+        shuffleEl.addEventListener("click", () => {
+          seed = Math.floor(Math.random() * 2 ** 32);
+          if (!rendering) render();
+        });
+      }
     };
 
     p.draw = () => {
       p.background(0);
-      if (bgImg) p.image(bgImg, 0, 0, p.width, p.height);
+      p.image(bgLayer, 0, 0);
 
-      p.noStroke();
-      p.fill(255, loading ? 180 + Math.sin(p.millis() * 0.005) * 75 : 255);
-      p.ellipse(x, y, DIAMETER, DIAMETER);
+      // Masquer cette ligne pour dessin continu
+      maskLayer.clear();
+      maskLayer.noStroke();
+      maskLayer.fill(
+        255,
+        rendering ? 180 + Math.sin(p.millis() * 0.005) * 75 : 255,
+      );
+      maskLayer.ellipse(x, y, DIAMETER, DIAMETER);
+
+      p.image(maskLayer, 0, 0);
     };
 
     p.mousePressed = () => {
+      const dx = p.mouseX - x;
+      const dy = p.mouseY - y;
+      const insideCircle = dx * dx + dy * dy <= RADIUS * RADIUS;
+
       moved = false;
-      if (!overCircle()) return;
+      if (!insideCircle) return;
+
+      maskLayer.clear();
+
       dragging = true;
       offsetX = p.mouseX - x;
       offsetY = p.mouseY - y;
@@ -97,19 +122,20 @@ export function createSketch(container) {
 
     p.mouseDragged = () => {
       if (!dragging) return;
-      x = p.constrain(p.mouseX - offsetX, DIAMETER / 2, p.width - DIAMETER / 2);
-      y = p.constrain(
-        p.mouseY - offsetY,
-        DIAMETER / 2,
-        p.height - DIAMETER / 2,
-      );
+
+      x = p.constrain(p.mouseX - offsetX, RADIUS, p.width - RADIUS);
+      y = p.constrain(p.mouseY - offsetY, RADIUS, p.height - RADIUS);
       moved = true;
     };
 
     p.mouseReleased = () => {
       if (!dragging) return;
+
       dragging = false;
-      if (moved) render();
+
+      if (moved) {
+        render();
+      }
     };
   });
 }

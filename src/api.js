@@ -1,6 +1,72 @@
-const COMFY_URL = "http://127.0.0.1:8188";
+const COMFY_URL = "http://127.0.0.1:8000";
 
 let currentController = null;
+let currentWorkflowPath = null;
+let workflowDropdownInitialized = false;
+
+const workflowModules = import.meta.glob("./workflows/*.json");
+
+function setStatus(text) {
+  const el = document.getElementById("status");
+  if (el) el.textContent = text;
+}
+
+function ensureWorkflowDropdown(selectId = "workflow-select") {
+  if (workflowDropdownInitialized) return;
+
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  const workflows = Object.keys(workflowModules)
+    .map((path) => {
+      const fileName = path.split("/").pop();
+      return {
+        path,
+        name: fileName.replace(".json", ""),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  select.innerHTML = "";
+
+  workflows.forEach((workflow, index) => {
+    const option = document.createElement("option");
+    option.value = workflow.path;
+    option.textContent = workflow.name;
+    select.appendChild(option);
+
+    if (index === 0) {
+      currentWorkflowPath = workflow.path;
+      select.value = workflow.path;
+    }
+  });
+
+  select.addEventListener("change", () => {
+    currentWorkflowPath = select.value;
+    setStatus(
+      `workflow: ${select.selectedOptions[0]?.textContent || "unknown"}`,
+    );
+  });
+
+  workflowDropdownInitialized = true;
+
+  if (workflows.length > 0) {
+    setStatus(`workflow: ${workflows[0].name}`);
+  } else {
+    setStatus("no workflows found");
+  }
+}
+
+initWorkflowDropdown();
+
+export function initWorkflowDropdown(selectId = "workflow-select") {
+  ensureWorkflowDropdown(selectId);
+}
+
+export function getCurrentWorkflowPath() {
+  ensureWorkflowDropdown();
+  return currentWorkflowPath;
+}
 
 export function cancelComfyRequest() {
   if (currentController) {
@@ -9,15 +75,18 @@ export function cancelComfyRequest() {
   }
 }
 
-function setStatus(text) {
-  const el = document.getElementById("status");
-  if (el) el.textContent = text;
-}
+async function loadWorkflow(workflowPath) {
+  if (!workflowPath) {
+    throw new Error("no workflow selected");
+  }
 
-async function loadWorkflow(signal) {
-  const res = await fetch("/workflows/sdxlturbo_b64_V3.json", { signal });
-  if (!res.ok) throw new Error("failed to load workflow");
-  return res.json();
+  const importer = workflowModules[workflowPath];
+  if (!importer) {
+    throw new Error(`workflow not found: ${workflowPath}`);
+  }
+
+  const mod = await importer();
+  return structuredClone(mod.default);
 }
 
 function extractBase64(dataUrl) {
@@ -29,7 +98,7 @@ function extractBase64(dataUrl) {
 function ensureDataUrl(base64) {
   if (!base64 || typeof base64 !== "string") return null;
   if (base64.startsWith("data:image/")) return base64;
-  return `data:image/jpeg;base64,${base64}`;
+  return `data:image/png;base64,${base64}`;
 }
 
 function findBase64Output(history) {
@@ -61,28 +130,26 @@ async function getBase64FromHistory(promptId, signal) {
 
     if (!history) continue;
 
-    const completed = history?.status?.completed;
     const textOutput = findBase64Output(history);
+    if (textOutput) return ensureDataUrl(textOutput);
 
-    if (textOutput) {
-      return ensureDataUrl(textOutput);
-    }
-
-    if (completed) {
-      return null;
-    }
+    if (history?.status?.completed) return null;
   }
 }
 
 export async function runComfy(dataUrl, promptText, seed) {
+  ensureWorkflowDropdown();
+
   cancelComfyRequest();
   currentController = new AbortController();
   const { signal } = currentController;
 
   try {
-    setStatus("running...");
+    const workflow = await loadWorkflow(currentWorkflowPath);
 
-    const workflow = await loadWorkflow(signal);
+    setStatus(
+      `running: ${currentWorkflowPath.split("/").pop().replace(".json", "")}...`,
+    );
 
     workflow["30"].inputs.data = extractBase64(dataUrl);
     workflow["6"].inputs.text = promptText;
